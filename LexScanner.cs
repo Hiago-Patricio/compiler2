@@ -57,6 +57,8 @@ namespace Compiler
                 "+", 
                 "*", 
                 "/",
+                "{",
+                "}"
             }).Contains(c.ToString());
         }
 
@@ -73,6 +75,8 @@ namespace Compiler
                 "end",
                 "real",
                 "integer",
+                "while",
+                "do",
             }).Contains(term);
         }
 
@@ -130,6 +134,8 @@ namespace Compiler
                             {
                                 ':' or '>' => 6,
                                 '<' => 8,
+                                '/' => 10,
+                                '*' => 12,
                                 _ => 5
                             };
                             term += c;
@@ -225,6 +231,36 @@ namespace Compiler
                         }
                         break;
                     case 9:
+                        Back();
+                        return new Token(EnumToken.SYMBOL, term);
+                    case 10:
+                        if (c is '*')
+                        {
+                            State = 11;
+                            term += c;
+                        }
+                        else
+                        {
+                            Back();
+                            return new Token(EnumToken.SYMBOL, term);
+                        }
+                        break;
+                    case 11:
+                        Back();
+                        return new Token(EnumToken.SYMBOL, term);
+                    case 12:
+                        if (c is '/')
+                        {
+                            State = 13;
+                            term += c;
+                        }
+                        else
+                        {
+                            Back();
+                            return new Token(EnumToken.SYMBOL, term);
+                        }
+                        break;
+                    case 13:
                         Back();
                         return new Token(EnumToken.SYMBOL, term);
                 }
