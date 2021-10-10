@@ -1,7 +1,17 @@
 # compiler
 This project was developed for Compilers 1 subject. The implementation is just the frontend of a compiler, thus it analysis is just the syntactic and semantic. 
 
-To run the program use ```dotnet run``` or ```dotnet run file```.
+To run the program use one of the options below: 
+```
+dotnet run interpreter <input_file>
+dotnet run compiler <input_file> <output_file>
+```
+Examples:
+```
+dotnet run interpreter input.txt
+dotnet run compiler input.txt output.txt
+```
+
 
 Automaton:
 ![alt text](https://github.com/Hiago-Patricio/compiler2/blob/main/Automaton.png)

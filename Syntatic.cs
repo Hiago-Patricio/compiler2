@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Linq;
 
@@ -9,15 +10,16 @@ namespace Compiler
     {
         private LexScanner lexScanner;
         private Token token;
-        private int temp = 1;
-        private int currentLine = 0;
         private EnumToken? tipo;
         private Dictionary<String, Symbol> SymbolTable = new Dictionary<string, Symbol>();
-        private string code = new string("operator;arg1;arg2;result\n");
+        private List<string> C = new List<string>{};
+        private int s = -1;
+        private string output;
 
-        public Syntatic(string path)
+        public Syntatic(string input, string output)
         {
-            lexScanner = new LexScanner(path);
+            lexScanner = new LexScanner(input);
+            this.output = output;
         }
 
         public void analysis()
@@ -26,7 +28,7 @@ namespace Compiler
             programa();
             if (token == null)
             {
-                Console.WriteLine(code);
+                File.WriteAllLines(output, C.ToArray());
             }
             else
             {
@@ -35,20 +37,18 @@ namespace Compiler
             }
         }
         
-        private string generateTemp()
-        {
-            return $"t{temp++}";
-        }
-
-        private void generateCode(string op, string arg1, string arg2, string result)
-        {
-            code += $"{op};{arg1};{arg2};{result}\n";
-            currentLine++;
-        }
-
         private void getToken()
         {
             token = lexScanner.NextToken();
+
+            if (verifyTokenValue("{", "/*"))
+            {
+                while (!verifyTokenValue("}", "*/"))
+                {
+                    token = lexScanner.NextToken();
+                }
+                token = lexScanner.NextToken();
+            }
         }
 
         private bool verifyTokenValue(params string[] terms)
@@ -61,16 +61,6 @@ namespace Compiler
             return enums.Any(e => token != null && token.type.Equals(e));
         }
 
-        private void replaceLastOccurence(string oldString)
-        {
-            int lastIndex = code.LastIndexOf(oldString);
-
-            string beginString = code.Substring(0, lastIndex);
-            string endString = code.Substring(lastIndex + oldString.Length);
-
-            code = beginString + currentLine.ToString() + endString;
-        }
-        
         // <programa> -> program ident <corpo> .
         private void programa()
         {
@@ -79,13 +69,15 @@ namespace Compiler
                 getToken();
                 if (verifyTokenType(EnumToken.IDENTIFIER))
                 {
+                    C = C.Append("INPP").ToList();
                     corpo();
                     getToken();
                     if (!verifyTokenValue("."))
                     {
                         throw new Exception($"Erro sintático, '.' era esperado, mas foi encontrado '{(token == null ? "NULL": token.value)}'.");
                     }
-                    generateCode("PARA", "", "", "");
+
+                    C = C.Append("PARA").ToList();
                     getToken();
                 }
                 else
@@ -168,8 +160,8 @@ namespace Compiler
                 {
                     throw new Exception($"Erro semântico, o identificador '{token.value}' já foi declarado.");
                 }
-                SymbolTable.Add(token.value, new Symbol(variaveisEsq ,token.value));
-                generateCode("ALME", variaveisEsq == EnumToken.REAL ? "0.0" : "0", "", token.value);
+                C = C.Append("ALME 1").ToList();
+                SymbolTable.Add(token.value, new Symbol(variaveisEsq ,token.value, ++s));
                 mais_var(variaveisEsq);
             }
             else
@@ -234,13 +226,16 @@ namespace Compiler
                             throw new Exception($"Erro sintático, ')' era esperado, mas foi encontrado: '{(token == null ? "NULL": token.value)}'.");
                         }
 
+                        s++;
                         if (opCode == "read")
                         {
-                            generateCode("read", "", "", ident);
+                            C = C.Append("LEIT").ToList();
+                            C = C.Append($"ARMZ {SymbolTable[ident].endRel}").ToList();
                         }
                         else
                         {
-                            generateCode("write", ident, "", "");
+                            C = C.Append($"CRVL {SymbolTable[ident].endRel}").ToList();
+                            C = C.Append("IMPR").ToList();
                         }
                         
                         getToken();
@@ -266,9 +261,9 @@ namespace Compiler
                 if (verifyTokenValue(":="))
                 {
                     tipo = SymbolTable[ident].type;
-                    var expressaoDir = expressao();
+                    expressao();
                     tipo = null;
-                    generateCode(":=", expressaoDir, "", ident);
+                    C = C.Append($"ARMZ {SymbolTable[ident].endRel}").ToList();
                 }
                 else
                 {
@@ -277,15 +272,33 @@ namespace Compiler
             }
             else if (verifyTokenValue("if"))
             {   
-                var condicaoDir = condicao();
+                condicao();
                 if (verifyTokenValue("then"))
                 {
-                    generateCode("JF", condicaoDir, "JF_line", "");
+                    var DSVFLineToReplace = C.Count;
+                    C = C.Append("DSVF DSVFLineToReplace").ToList();
+
                     comandos();
-                    generateCode("goto", "goto_line", "", "");
-                    replaceLastOccurence("JF_line");
+
+                    var DSVILineToReplace = C.Count;
+                    C = C.Append("DSVI DSVILineToReplace").ToList();
+
+                    var ElseLine = C.Count - 1;
                     pfalsa();
-                    replaceLastOccurence("goto_line");
+
+                    // não tem else
+                    if (C.Count == ElseLine)
+                    {
+                        C.RemoveAt(C.Count - 1);
+                        C[DSVFLineToReplace] = C[DSVFLineToReplace].Replace("DSVFLineToReplace", C.Count.ToString());
+                    }
+                
+                    if (C.Count > ElseLine)
+                    {
+                        C[DSVFLineToReplace] = C[DSVFLineToReplace].Replace("DSVFLineToReplace", ElseLine.ToString());
+                        C[DSVILineToReplace] = C[DSVILineToReplace].Replace("DSVILineToReplace", (C.Count - 1).ToString());
+                    }
+                
                     if (!verifyTokenValue("$"))
                     {
                         throw new Exception($"Erro sintático, '$' ou ';' era esperado, mas foi encontrado: '{(token == null ? "NULL": token.value)}'.");
@@ -296,6 +309,35 @@ namespace Compiler
                 {
                     throw new Exception($"Erro sintático, 'then' era esperado, mas foi encontrado: '{(token == null ? "NULL": token.value)}'.");
                 }
+            }
+            else if (verifyTokenValue("while"))
+            {
+                var ConditionLineToReplace = C.Count; 
+                condicao();
+
+                var DSVFLineToReplace = C.Count;
+                C = C.Append("DSVF DSVFLineToReplace").ToList();
+
+                if (verifyTokenValue("do"))
+                {
+                    comandos();
+
+                    C = C.Append($"DSVI {ConditionLineToReplace}").ToList();
+
+                    C[DSVFLineToReplace] = C[DSVFLineToReplace].Replace("DSVFLineToReplace", C.Count.ToString());
+                
+                    if (!verifyTokenValue("$"))
+                    {
+                        throw new Exception(
+                            $"Erro sintático, '$' ou ';' era esperado, mas foi encontrado: '{(token == null ? "NULL" : token.value)}'.");
+                    }
+                    getToken();
+                }
+                else
+                {
+                    throw new Exception($"Erro sintático, 'do' era esperado, mas foi encontrado: '{(token == null ? "NULL": token.value)}'.");
+                }
+            
             }
             else
             {
@@ -313,31 +355,32 @@ namespace Compiler
         }
 
         // <expressao> -> <termo> <outros_termos>
-        private string expressao()
+        private void expressao()
         {
-            var termoDir = termo();
-            var outrosTermosDir = outros_termos(termoDir);
-
-            return outrosTermosDir;
+            termo();
+            outros_termos();
         }
 
         // <outros_termos> -> <op_ad> <termo> <outros_termos> | λ
-        private string outros_termos(string outrosTermosEsq)
+        private void outros_termos()
         {
             if (verifyTokenValue("+", "-"))
             {
                 var opAdDir = op_ad();
                 getToken();
-                var termoDir = termo();
-                
-                var t = generateTemp();
-                generateCode(opAdDir, outrosTermosEsq, termoDir, t);
-                termoDir = t;
-                
-                return outros_termos(termoDir);
-            }
+                termo();
 
-            return outrosTermosEsq;
+                if (opAdDir is "+")
+                {
+                    C = C.Append("SOMA").ToList();
+                }
+                else
+                {
+                    C = C.Append("SUBT").ToList();
+                }
+                
+                outros_termos();
+            }
         }
 
         // <op_ad> -> + | -
@@ -347,14 +390,33 @@ namespace Compiler
         }
 
         // <condicao> -> <expressao> <relacao> <expressao>  
-        private string condicao()
+        private void condicao()
         {
-            var expressaoDir = expressao();
+            expressao();
             var relacaoDir = relacao();
-            var expressaoLinhaDir = expressao();
-            var t = generateTemp();
-            generateCode(relacaoDir, expressaoDir, expressaoLinhaDir, t);
-            return t;
+            expressao();
+
+            switch (relacaoDir)
+            {
+                case "=":
+                    C = C.Append("CPIG").ToList();
+                    break;
+                case "<>":
+                    C = C.Append("CDES").ToList();
+                    break;
+                case "<":
+                    C = C.Append("CPME").ToList();
+                    break;
+                case ">":
+                    C = C.Append("CPMA").ToList();
+                    break;
+                case "<=":
+                    C = C.Append("CPMI").ToList();
+                    break;
+                case ">=":
+                    C = C.Append("CMAI").ToList();
+                    break;
+            }
         }
 
         // <pfalsa> -> else <comandos> | λ  
@@ -378,19 +440,17 @@ namespace Compiler
         }
 
         // <termo> -> <op_un> <fator> <mais_fatores> 
-        private string termo()
+        private void termo()
         {
             var opUnDir = op_un();
-            var fatorDir = fator(opUnDir);
-            var maisFatoresDir = mais_fatores(fatorDir);
-
-            return maisFatoresDir;
+            fator(opUnDir);
+            mais_fatores();
         }
 
         // <op_un> -> - | λ
         private string op_un()
         {
-            if (!verifyTokenType(EnumToken.IDENTIFIER))
+            if (!verifyTokenType(EnumToken.IDENTIFIER, EnumToken.REAL, EnumToken.INTEGER))
             {
                 getToken();
                 if (verifyTokenValue("-"))
@@ -403,11 +463,11 @@ namespace Compiler
         }
 
         // <fator> -> ident | numero_int | numero_real | (<expressao>)   
-        private string fator(string fatorEsq)
+        private void fator(string fatorEsq)
         {
             if (verifyTokenValue("("))
             {
-                var expressaoDir = expressao();
+                expressao();
                 
                 getToken();
                 if (!verifyTokenValue(")"))
@@ -417,32 +477,24 @@ namespace Compiler
                 
                 if (fatorEsq == "-")
                 {
-                    var t = generateTemp();
-                    generateCode("minus", expressaoDir, "", t);
-                    return t;
+                    C = C.Append("INVE").ToList();
                 }
-
-                return expressaoDir;
+                return;
 
             }
             else if (verifyTokenType(EnumToken.INTEGER, EnumToken.REAL))
             {
                 var number = token.value;
 
-                if (tipo != null && token.type != tipo)
-                {
-                    throw new Exception($"Erro semântico, os tipos são diferentes.");
-                }
-                
+                C = C.Append($"CRCT {number}").ToList();
                 if (fatorEsq == "-")
                 {
-                    var t = generateTemp();
-                    generateCode("minus", number, "", t);
-                    return t;
+                    C = C.Append("INVE").ToList();
                 }
 
-                return number;
-            } else if (verifyTokenType(EnumToken.IDENTIFIER))
+                return;
+            } 
+            else if (verifyTokenType(EnumToken.IDENTIFIER))
             {
                 var ident = token.value;
                 
@@ -451,47 +503,42 @@ namespace Compiler
                     throw new Exception($"Erro semântico, o identificador '{ident}' não foi declarado.");
                 }
 
-                if (tipo != null && tipo != SymbolTable[ident].type)
-                {
-                    throw new Exception($"Erro semântico, os tipos são diferentes.");
-                }
-                
+                C = C.Append($"CRVL {SymbolTable[ident].endRel}").ToList();
                 if (fatorEsq == "-")
                 {
-                    var t = generateTemp();
-                    generateCode("minus", ident, "", t);
-                    return t;
+                    C = C.Append("INVE").ToList();
                 }
-
-                return ident;
+                
+                return;
+            }
+            else if(verifyTokenValue("$"))
+            {
+                return;
             }
             throw new Exception($"Erro sintático, identificador, número inteiro, número real ou '(' era esperado, mas foi encontrado: '{(token == null ? "NULL": token.value)}'.");
         }
 
         // <mais_fatores> -> <op_mul> <fator> <mais_fatores> | λ  
-        private string mais_fatores(string maisFatoresEsq)
+        private void mais_fatores()
         {
             getToken();
             if (verifyTokenValue("*", "/"))
             {
                 var opMulDir = op_mul();
                 getToken();
-                var fatorDir = fator(opMulDir);
+                fator(opMulDir);
 
-                var t = generateTemp();
                 if (opMulDir == "*")
                 {
-                    generateCode("*", maisFatoresEsq, fatorDir, t);
+                    C = C.Append("MULT").ToList();
                 }
                 else
                 {
-                    generateCode("/", maisFatoresEsq, fatorDir, t);
+                    C = C.Append("DIVI").ToList();
                 }
-
-                fatorDir = t;
-                return mais_fatores(fatorDir);
+                
+                mais_fatores();
             }
-            return maisFatoresEsq;
         }
 
         // <op_mul> -> * | / 
