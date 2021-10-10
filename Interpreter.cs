@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -45,7 +46,7 @@ namespace Compiler
         // Carrega constante k no topo da pilha D
         public void CRCT(string k)
         {
-            D = D.Append(float.Parse(k)).ToList();
+            D = D.Append(float.Parse(k, CultureInfo.InvariantCulture)).ToList();
             s++;
         }
         
@@ -240,13 +241,13 @@ namespace Compiler
         public void LEIT()
         {
             s++;
-            D = D.Append(float.Parse(Console.ReadLine())).ToList();
+            D = D.Append(float.Parse(Console.ReadLine(), CultureInfo.InvariantCulture)).ToList();
         }
         
         // Imprime o valor do topo da pilha na saída
         public void IMPR()
         {
-            Console.WriteLine(D[s]);
+            Console.WriteLine(D[s].ToString(CultureInfo.InvariantCulture));
             D.RemoveAt(s--);
         }
         
