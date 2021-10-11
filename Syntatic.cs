@@ -41,13 +41,25 @@ namespace Compiler
         {
             token = lexScanner.NextToken();
 
-            if (verifyTokenValue("{", "/*"))
+            while(verifyTokenValue("{", "/*"))
             {
-                while (!verifyTokenValue("}", "*/"))
+                if (verifyTokenValue("{"))
                 {
+                    while (!verifyTokenValue("}"))
+                    {
+                        token = lexScanner.NextToken();
+                    }
                     token = lexScanner.NextToken();
                 }
-                token = lexScanner.NextToken();
+
+                if (verifyTokenValue("/*"))
+                {
+                    while (!verifyTokenValue("*/"))
+                    {
+                        token = lexScanner.NextToken();
+                    }
+                    token = lexScanner.NextToken();
+                }
             }
         }
 
