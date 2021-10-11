@@ -38,8 +38,10 @@ namespace Compiler
                 {
                     method?.Invoke(this, new object[]{});
                 }
-
-                i++;
+                if (function != "DSVF" && function != "DSVI")
+                {
+                    i++;
+                }
             }
         }
 
@@ -53,7 +55,8 @@ namespace Compiler
         // Carrega o valor de endereço n no topo da pilha D
         public void CRVL(string n)
         {
-            D = D.Append(D[int.Parse(n)]).ToList();
+            var element = D[int.Parse(n)];
+            D = D.Append(element).ToList();
             s++;
         }
 
@@ -221,7 +224,6 @@ namespace Compiler
         public void DSVI(string p)
         {
             i = int.Parse(p);
-            // TODO verificar
         }
         
         // Desvio condicional para a intrução de endereço p; o
@@ -231,8 +233,11 @@ namespace Compiler
         {
             if (D[s] == 0)
             {
-                // TODO verificar
                 i = int.Parse(p);
+            }
+            else
+            {
+                i++;
             }
             D.RemoveAt(s--);
         }

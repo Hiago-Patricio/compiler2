@@ -283,7 +283,7 @@ namespace Compiler
                     var DSVILineToReplace = C.Count;
                     C = C.Append("DSVI DSVILineToReplace").ToList();
 
-                    var ElseLine = C.Count - 1;
+                    var ElseLine = C.Count;
                     pfalsa();
 
                     // não tem else
@@ -296,7 +296,7 @@ namespace Compiler
                     if (C.Count > ElseLine)
                     {
                         C[DSVFLineToReplace] = C[DSVFLineToReplace].Replace("DSVFLineToReplace", ElseLine.ToString());
-                        C[DSVILineToReplace] = C[DSVILineToReplace].Replace("DSVILineToReplace", (C.Count - 1).ToString());
+                        C[DSVILineToReplace] = C[DSVILineToReplace].Replace("DSVILineToReplace", C.Count.ToString());
                     }
                 
                     if (!verifyTokenValue("$"))
